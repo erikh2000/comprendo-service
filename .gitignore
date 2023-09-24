@@ -14,5 +14,8 @@ store/*
 # OS stuff
 
 # IDE/tool stuff
-.ide
+.idea
 .nvmrc
+
+# Secrets
+src/private
