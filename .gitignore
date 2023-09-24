@@ -1,0 +1,18 @@
+# package directories
+node_modules
+jspm_packages
+
+# Serverless directories
+.serverless
+
+# build-time generated
+.esbuild
+
+# run-time generated
+store/*
+
+# OS stuff
+
+# IDE/tool stuff
+.ide
+.nvmrc
