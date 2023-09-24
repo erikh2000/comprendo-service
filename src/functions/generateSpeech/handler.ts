@@ -1,14 +1,12 @@
-import { S3_BUCKET_NAME} from "@private/aws-config";
+import {POLLY_REGION, S3_BUCKET_NAME, S3_WEBSITE_URL} from "@private/aws-config";
 import schema from './schema';
 
 import type { ValidatedEventAPIGatewayProxyEvent } from '@libs/api-gateway';
 import { middyfy } from '@libs/lambda';
-import { Polly, S3} from 'aws-sdk';
-import { v1 as uuid1 } from 'uuid';
+import {PollyClient, StartSpeechSynthesisTaskCommand} from '@aws-sdk/client-polly';
 import {formatJSONResponse} from "@libs/api-gateway";
 
-const polly = new Polly();
-const s3 = new S3();
+const polly = new PollyClient({region:POLLY_REGION});
 
 function _getVoiceIdForLanguageCode(languageCode:string):string|undefined {
   switch(languageCode) {
@@ -16,6 +14,11 @@ function _getVoiceIdForLanguageCode(languageCode:string):string|undefined {
     case 'es-MX': return 'Mia';
     default:return undefined;
   }
+}
+
+function _createS3WebsiteUrl(outputUri:string, s3WebsiteUrl:string):string {
+  const filename = outputUri.split('/').pop();
+  return `${s3WebsiteUrl}${filename}`;
 }
 
 const generateSpeech: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
@@ -27,16 +30,14 @@ const generateSpeech: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async 
     Engine: 'neural',
     LanguageCode: languageCode,
     OutputFormat: 'mp3',
+    OutputS3BucketName: S3_BUCKET_NAME,
     Text: text,
     VoiceId: voiceId
   };
   
-  const pollyResponse = await polly.synthesizeSpeech(pollyParams).promise();
-  
-  const audioStream = pollyResponse.AudioStream;
-  const key = `${uuid1()}.mp3`;
-  await s3.putObject({Bucket:S3_BUCKET_NAME, Key:key, Body:audioStream}).promise();
-  const url = await s3.getSignedUrlPromise('getObject', {Bucket:S3_BUCKET_NAME, Key:key});
+  const pollyResponse = await polly.send(new StartSpeechSynthesisTaskCommand(pollyParams));
+  const url = _createS3WebsiteUrl(pollyResponse.SynthesisTask.OutputUri, S3_WEBSITE_URL);
+  console.log(pollyResponse);
   
   return formatJSONResponse({
     message: `Stored "${text}".`,
