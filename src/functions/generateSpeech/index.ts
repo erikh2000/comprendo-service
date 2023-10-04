@@ -9,6 +9,7 @@ export default {
         method: 'post',
         path: 'generateSpeech',
         cors: true,
+        authorizer: 'aws_iam',
         request: {
           schemas: {
             'application/json': schema,

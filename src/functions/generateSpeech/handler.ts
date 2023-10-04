@@ -11,6 +11,7 @@ const polly = new PollyClient({region:POLLY_REGION});
 function _getVoiceIdForLanguageCode(languageCode:string):string|undefined {
   switch(languageCode) {
     case 'en-US': return 'Matthew';
+    case 'es-ES': return 'Conchita';
     case 'es-MX': return 'Mia';
     default:return undefined;
   }
@@ -24,26 +25,24 @@ function _createS3WebsiteUrl(outputUri:string, s3WebsiteUrl:string):string {
 const generateSpeech: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
   const {text} = event.body;
   const languageCode = event.body.language ?? 'en-US';
+  const speed = event.body.speed ?? 'medium';
   const voiceId = _getVoiceIdForLanguageCode(languageCode);
+  const ssml = `<speak><prosody rate="${speed}">${text}</prosody></speak>`;
   
   const pollyParams = {
     Engine: 'neural',
     LanguageCode: languageCode,
     OutputFormat: 'mp3',
     OutputS3BucketName: S3_BUCKET_NAME,
-    Text: text,
+    Text: ssml,
+    TextType: 'ssml',
     VoiceId: voiceId
   };
   
   const pollyResponse = await polly.send(new StartSpeechSynthesisTaskCommand(pollyParams));
   const url = _createS3WebsiteUrl(pollyResponse.SynthesisTask.OutputUri, S3_WEBSITE_URL);
-  console.log(pollyResponse);
   
-  return formatJSONResponse({
-    message: `Stored "${text}".`,
-    url,
-    event,
-  });
+  return formatJSONResponse({url});
 };
 
 export const main = middyfy(generateSpeech);
