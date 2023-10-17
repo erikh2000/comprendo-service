@@ -1,9 +1,9 @@
 export default {
   type: "object",
   properties: {
-    text: { type: 'string' },
+    ssml: { type: 'string' },
     language: { type: 'string' },
-    speed: { type: 'string' },
+    name: { type: 'string' },
   },
-  required: ['text']
+  required: ['ssml']
 } as const;

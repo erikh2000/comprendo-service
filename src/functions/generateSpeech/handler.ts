@@ -32,13 +32,10 @@ function _getFilenameFromUrl(url:string, replaceExtension:string):string {
   return `${filename.substr(0, extensionPosition)}.${replaceExtension}`;
 }
 
-function _doesTextContainSsml(text:string):boolean { return text.includes('<speak>'); }
-
 const generateSpeech: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event) => {
-  const {text} = event.body;
-  const languageCode = event.body.language ?? 'en-US';
-  const speed = event.body.speed ?? 'medium';
-  const ssml = _doesTextContainSsml(text) ? text : `<speak><prosody rate="${speed}">${text}</prosody></speak>`;
+  const {ssml, language, name} = event.body;
+  const languageCode = language ?? 'en-US';
+  const lessonName = name ?? 'default';
   try {
     const voiceId = _getVoiceIdForLanguageCode(languageCode);
     
@@ -66,13 +63,13 @@ const generateSpeech: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async 
     await s3.send(new PutObjectCommand({
       Bucket: S3_BUCKET_NAME,
       Key: lessonFilename,
-      Body: JSON.stringify({mp3url, marksUrl, languageCode, speed, ssml})
+      Body: JSON.stringify({mp3url, marksUrl, languageCode, lessonName, ssml})
     }));
     const lessonUrl = _createS3WebsiteUrl(lessonFilename, S3_WEBSITE_URL);
     
     return formatJSONResponse({lessonUrl});
   } catch(e) {
-    return formatJSONResponse({lessonUrl:null, error:e.toString(), languageCode, speed, ssml});
+    return formatJSONResponse({lessonUrl:null, error:e.toString(), languageCode, lessonName, ssml});
   }
 };
 
