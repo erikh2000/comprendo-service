@@ -12,6 +12,7 @@ jspm_packages
 store/*
 
 # OS stuff
+.DS_Store
 
 # IDE/tool stuff
 .idea

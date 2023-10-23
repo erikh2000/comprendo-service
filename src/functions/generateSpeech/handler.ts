@@ -1,4 +1,4 @@
-import {POLLY_REGION, S3_BUCKET_NAME, S3_WEBSITE_URL, S3_REGION} from "@private/aws-config";
+import {POLLY_REGION, S3_BUCKET_NAME, S3_WEBSITE_URL, S3_REGION, S3_LESSON_PREFIX} from "@private/aws-config";
 import schema from './schema';
 
 import type { ValidatedEventAPIGatewayProxyEvent } from '@libs/api-gateway';
@@ -21,9 +21,9 @@ function _getVoiceIdForLanguageCode(languageCode:string):string|undefined {
   }
 }
 
-function _createS3WebsiteUrl(outputUri:string, s3WebsiteUrl:string):string {
+function _createS3WebsiteUrl(outputUri:string):string {
   const filename = outputUri.split('/').pop();
-  return `${s3WebsiteUrl}${filename}`;
+  return `${S3_WEBSITE_URL}${S3_LESSON_PREFIX}${filename}`;
 }
 
 function _getFilenameFromUrl(url:string, replaceExtension:string):string {
@@ -49,10 +49,11 @@ type LessonManifest = {
 };
 
 async function _getLessonManifest():Promise<LessonManifest> {
+  const Key = `${S3_LESSON_PREFIX}${LESSON_MANIFEST_FILENAME}`;
   try {
     const response = await s3.send(new GetObjectCommand({
       Bucket: S3_BUCKET_NAME,
-      Key: LESSON_MANIFEST_FILENAME
+      Key
     }));
     const object = await _s3ResponseToObject(response);
     return object as LessonManifest;
@@ -65,21 +66,23 @@ async function _getLessonManifest():Promise<LessonManifest> {
 async function _addLessonToManifest(lessonName:string, lessonUrl:string) {
   const lessonManifest = await _getLessonManifest();
   lessonManifest.lessons.push({name:lessonName, url:lessonUrl});
+  const Key = `${S3_LESSON_PREFIX}${LESSON_MANIFEST_FILENAME}`;
   await s3.send(new PutObjectCommand({
     Bucket: S3_BUCKET_NAME,
-    Key: LESSON_MANIFEST_FILENAME,
+    Key,
     Body: JSON.stringify(lessonManifest)
   }));
 }
 
 async function _putLesson(mp3url:string, marksUrl:string, languageCode:string, lessonName:string, ssml:string):Promise<string> {
   const lessonFilename = _getFilenameFromUrl(mp3url, 'json');
+  const Key = `${S3_LESSON_PREFIX}${lessonFilename}`;
   await s3.send(new PutObjectCommand({
     Bucket: S3_BUCKET_NAME,
-    Key: lessonFilename,
+    Key,
     Body: JSON.stringify({mp3url, marksUrl, languageCode, lessonName, ssml})
   }));
-  return _createS3WebsiteUrl(lessonFilename, S3_WEBSITE_URL);
+  return _createS3WebsiteUrl(lessonFilename);
 }
 
 async function _synthesizeSpeech(languageCode:string, ssml:string):Promise<{mp3url, marksUrl}>{
@@ -89,6 +92,7 @@ async function _synthesizeSpeech(languageCode:string, ssml:string):Promise<{mp3u
     LanguageCode: languageCode,
     OutputFormat: 'mp3',
     OutputS3BucketName: S3_BUCKET_NAME,
+    OutputS3KeyPrefix: S3_LESSON_PREFIX,
     Text: ssml,
     TextType: 'ssml',
     VoiceId: voiceId,
@@ -96,12 +100,12 @@ async function _synthesizeSpeech(languageCode:string, ssml:string):Promise<{mp3u
   };
 
   const pollyMp3Response = await polly.send(new StartSpeechSynthesisTaskCommand(pollyParams));
-  const mp3url = _createS3WebsiteUrl(pollyMp3Response.SynthesisTask.OutputUri, S3_WEBSITE_URL);
+  const mp3url = _createS3WebsiteUrl(pollyMp3Response.SynthesisTask.OutputUri);
 
   pollyParams.OutputFormat = 'json';
   pollyParams.SpeechMarkTypes = ['ssml'];
   const pollyJsonResponse = await polly.send(new StartSpeechSynthesisTaskCommand(pollyParams));
-  const marksUrl = _createS3WebsiteUrl(pollyJsonResponse.SynthesisTask.OutputUri, S3_WEBSITE_URL);
+  const marksUrl = _createS3WebsiteUrl(pollyJsonResponse.SynthesisTask.OutputUri);
   
   return {mp3url, marksUrl};
 }
